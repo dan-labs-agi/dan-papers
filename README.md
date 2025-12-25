@@ -41,6 +41,38 @@ src/
 └── App.tsx              # Main application component
 ```
 
+### Framework Workflow
+
+```mermaid
+graph TD
+    A[User Accesses Blog] --> B[Static React Frontend]
+    B --> C{Request Type}
+    C -->|View Article| D[Fetch from GitHub/Git]
+    C -->|Write Article| E[GitHub Integration]
+    C -->|AI Summary| F[External AI API]
+    
+    D --> G[Article Rendering Engine]
+    E --> H[Commit to GitHub Repo]
+    F --> I[AI Summary Generation]
+    
+    G --> J[Display Article]
+    H --> K[Content Updated in Repo]
+    I --> L[Display AI Summary]
+    
+    J --> M[User Reads Research]
+    L --> M
+    K --> D
+    
+    M -->|Feedback| N[GitHub Issues/PRs]
+    N --> O[Content Improvement]
+    O --> E
+    
+    style A fill:#4CAF50
+    style J fill:#2196F3
+    style K fill:#9C27B0
+    style L fill:#FFC107
+```
+
 ### Key Technologies:
 - **Frontend**: React 19.2.3 with TypeScript
 - **Build Tool**: Vite 6.2 for fast development
