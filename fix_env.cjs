@@ -1,17 +1,27 @@
-
+// This script generates a new JWT private key and adds it to .env
+// Do NOT hardcode any credentials here
 const crypto = require('crypto');
 const fs = require('fs');
-const { privateKey } = crypto.generateKeyPairSync('rsa', {
-    modulusLength: 2048,
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
-});
-const envContent = `VITE_CONVEX_URL=https://abundant-dove-973.convex.cloud
-CONVEX_DEPLOYMENT=dev:abundant-dove-973
-AUTH_GITHUB_ID=Ov23liDXOgPfGRvmDqUD
-AUTH_GITHUB_SECRET=dc4ed5c48ff026bda4991a429d5b551d686091d0
-GEMINI_API_KEY=AIzaSyA90G4ZM7eLQRR5_EQWdlUzK9YY4k77R6I
-JWT_PRIVATE_KEY="${privateKey.replace(/\n/g, '\\n')}"
-`;
-fs.writeFileSync('.env', envContent, { encoding: 'utf8' });
-console.log('Fixed .env file');
+const path = require('path');
+
+const envPath = path.join(__dirname, '.env');
+let envContent = '';
+
+// Read existing .env if it exists
+if (fs.existsSync(envPath)) {
+    envContent = fs.readFileSync(envPath, 'utf8');
+}
+
+// Generate new JWT key only if not present
+if (!envContent.includes('JWT_PRIVATE_KEY')) {
+    const { privateKey } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+    });
+    envContent += `\nJWT_PRIVATE_KEY="${privateKey.replace(/\n/g, '\\n')}"\n`;
+    fs.writeFileSync(envPath, envContent, { encoding: 'utf8' });
+    console.log('Added JWT_PRIVATE_KEY to .env');
+} else {
+    console.log('.env already has JWT_PRIVATE_KEY');
+}

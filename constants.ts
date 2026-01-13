@@ -8,7 +8,7 @@ const LOGO_DATA = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEAAQMAAAB
 export const CURRENT_USER: User = {
   name: "Dan",
   bio: "Researcher, Developer, 'Do Anything Now'. Writing about the future of AGI and Systems Engineering.",
-  image: "https://raw.githubusercontent.com/somdipto/dan-papers/main/logo.png" 
+  image: "https://api.dicebear.com/7.x/initials/svg?seed=Dan" 
 };
 
 export const ARTICLES: Article[] = [

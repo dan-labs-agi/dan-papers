@@ -1,7 +1,8 @@
 import React from 'react';
-console.log("Index.tsx is executing - FRESH LOAD " + new Date().toISOString());
+
 import ReactDOM from 'react-dom/client';
 import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import { AuthProvider } from "./src/context/AuthContext";
 import App from './App';
 import { convex } from "./src/lib/convex";
@@ -14,10 +15,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <ConvexProvider client={convex}>
+    <ConvexAuthProvider client={convex}>
       <AuthProvider>
         <App />
       </AuthProvider>
-    </ConvexProvider>
+    </ConvexAuthProvider>
   </React.StrictMode>
 );

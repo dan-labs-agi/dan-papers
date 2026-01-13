@@ -168,13 +168,16 @@ const ArticlePage: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // Try to find in constants first, if not this should ideally allow looking up via Convex query
-  // For now, this hybrid approach handles legacy articles.
-  // Ideally: const article = useQuery(api.functions.articles.getById, { id: id as any }) || ARTICLES.find...
-  // But id format differs. 
-
-  const article = ARTICLES.find(a => a.id === id);
-  // TODO: Add support for dynamic articles later.
+  // Check if it's a seed article (string ID like "genesis-of-dan-papers")
+  const seedArticle = ARTICLES.find(a => a.id === id);
+  
+  // Check if it's a Convex article (Convex document ID)
+  // Only query if it looks like a Convex ID (not a slug)
+  const isConvexId = id && !id.includes('-');
+  const convexArticle = useQuery(
+    api["functions/articles"].getById, 
+    isConvexId ? { id: id as any } : "skip"
+  );
 
   const deleteArticle = useMutation(api.functions.articles.remove);
 
@@ -185,6 +188,33 @@ const ArticlePage: React.FC = () => {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, [id]);
+
+  // Loading state for Convex articles
+  if (isConvexId && convexArticle === undefined) {
+    return (
+      <div className="max-w-screen-md mx-auto mt-20 text-center font-sans">
+        <Loader2 className="animate-spin text-gray-400 mx-auto" size={32} />
+      </div>
+    );
+  }
+
+  // Build article object from either source
+  const article = seedArticle ? { ...seedArticle, authorId: undefined } : (convexArticle ? {
+    id: convexArticle._id,
+    title: convexArticle.title,
+    subtitle: convexArticle.subtitle,
+    author: convexArticle.authorName,
+    authorId: convexArticle.authorId,
+    authorImage: convexArticle.authorImage,
+    date: convexArticle.date,
+    readTime: convexArticle.readTime,
+    tags: convexArticle.tags,
+    image: convexArticle.image,
+    content: convexArticle.content,
+  } : null);
+
+  // Check if current user is the owner of this article
+  const isOwner = user && article?.authorId && user.userId === article.authorId;
 
   if (!article) {
     return (
@@ -278,7 +308,7 @@ const ArticlePage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-4 md:gap-8 text-gray-400">
-            {user && (
+            {isOwner && (
               <button onClick={() => setShowDeleteModal(true)} title="Delete Paper" className="hover:text-red-500 transition-colors p-2">
                 <Trash2 size={22} />
               </button>
@@ -286,15 +316,17 @@ const ArticlePage: React.FC = () => {
             <button onClick={handleShare} title="Share Link" className="hover:text-black dark:hover:text-white transition-colors p-2">
               <Share size={22} />
             </button>
-            <button onClick={handleEdit} title="Edit Paper" className="hover:text-black dark:hover:text-white transition-colors p-2">
-              <MoreHorizontal size={22} />
-            </button>
+            {isOwner && (
+              <button onClick={handleEdit} title="Edit Paper" className="hover:text-black dark:hover:text-white transition-colors p-2">
+                <MoreHorizontal size={22} />
+              </button>
+            )}
           </div>
         </div>
 
-        {article.image && (
+        {article.image && article.image.startsWith('http') && (
           <div className="mb-16 rounded-3xl overflow-hidden border border-gray-100 dark:border-zinc-800 shadow-sm">
-            <img src={article.image} alt="Cover" className="w-full h-auto max-h-[500px] object-cover" />
+            <img src={article.image} alt="Cover" className="w-full h-auto max-h-[500px] object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
           </div>
         )}
 
