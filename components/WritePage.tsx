@@ -86,9 +86,25 @@ const WritePage: React.FC = () => {
     }
   };
 
+
+  const validateImage = (url: string) => {
+    if (!url) return true; // Optional
+    try {
+      const parsed = new URL(url);
+      return ['http:', 'https:'].includes(parsed.protocol);
+    } catch {
+      return false;
+    }
+  };
+
   const handlePublish = async () => {
     if (!user) {
       alert("Please login first.");
+      return;
+    }
+
+    if (image && !validateImage(image)) {
+      alert("Please enter a valid image URL (starting with http:// or https://)");
       return;
     }
 
@@ -98,14 +114,14 @@ const WritePage: React.FC = () => {
       const articleId = await publishArticle({
         title,
         subtitle,
-        authorId: user.userId,
+        // authorId is injected by server
         authorName: user.name,
-        authorImage: user.image,
-        image: image || undefined, // No default image - matches seed article design
+        authorImage: user.image, // We can keep this or fetch on server, but server expects it currently based on args
+        image: image || undefined,
         content,
         tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0),
       });
-      
+
       // Navigate to home after success
       setIsPublishing(false);
       navigate('/');
@@ -176,6 +192,11 @@ const WritePage: React.FC = () => {
             className="text-xl md:text-2xl font-serif text-gray-400 dark:text-zinc-500 border-none outline-none focus:ring-0 bg-transparent p-0 italic"
             value={subtitle} onChange={(e) => setSubtitle(e.target.value)}
           />
+          <input
+            type="text" placeholder="Cover Image URL (Optional)"
+            className="text-lg font-mono text-blue-600 dark:text-blue-400 border-none outline-none focus:ring-0 bg-transparent p-0"
+            value={image} onChange={(e) => setImage(e.target.value)}
+          />
           <textarea
             placeholder="Research Body..."
             className="w-full text-xl leading-relaxed font-serif text-medium-black/90 dark:text-zinc-200 border-none outline-none focus:ring-0 bg-transparent p-0 resize-none min-h-[60vh] placeholder:text-gray-200 dark:placeholder:text-zinc-800"
@@ -186,6 +207,9 @@ const WritePage: React.FC = () => {
         <div className="bg-white dark:bg-[#0c0c0c] p-8 md:p-16 rounded-[3rem] border border-gray-100 dark:border-zinc-800 shadow-2xl animate-in fade-in duration-500">
           <h1 className="text-4xl md:text-5xl font-sans font-bold mb-6 text-black dark:text-white">{title || 'Untitled'}</h1>
           <p className="text-xl text-gray-400 font-serif italic mb-12 border-l-4 border-black dark:border-white pl-8 py-2">{subtitle}</p>
+          {image && (
+            <img src={image} alt="Cover" className="w-full h-auto max-h-[500px] object-cover rounded-2xl mb-12 shadow-sm" onError={(e) => (e.target as HTMLImageElement).style.display = 'none'} />
+          )}
           <div className="article-body">{renderArticleContent(content)}</div>
         </div>
       )}
