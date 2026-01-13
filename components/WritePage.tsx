@@ -95,19 +95,20 @@ const WritePage: React.FC = () => {
     setIsPublishing(true);
 
     try {
-      await publishArticle({
+      const articleId = await publishArticle({
         title,
         subtitle,
         authorId: user.userId,
         authorName: user.name,
         authorImage: user.image,
-        image: image || "https://images.unsplash.com/photo-1456324504439-367cee101252?auto=format&fit=crop&q=80&w=2670",
+        image: image || undefined, // No default image - matches seed article design
         content,
         tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0),
       });
-
+      
       // Navigate to home after success
-      setTimeout(() => navigate('/'), 1000);
+      setIsPublishing(false);
+      navigate('/');
     } catch (error: any) {
       alert(`Publishing failed: ${error.message}`);
       setIsPublishing(false);

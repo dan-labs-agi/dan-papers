@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
-
+import React, { createContext, useContext } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
+import { useAuthActions } from "@convex-dev/auth/react";
 
 export interface User {
   id: string;
-  userId: string; // Alias for id to match app usage
+  userId: string;
   name: string;
   email?: string;
   image?: string;
@@ -28,55 +29,34 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  console.log("AuthProvider (Supabase) rendering");
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const mapUser = (sbUser: import("@supabase/supabase-js").User | null | undefined): User | null => {
-    if (!sbUser) return null;
-    return {
-      id: sbUser.id,
-      userId: sbUser.id,
-      name: sbUser.user_metadata?.full_name || sbUser.user_metadata?.name || sbUser.email || "Anonymous",
-      email: sbUser.email,
-      image: sbUser.user_metadata?.avatar_url || sbUser.user_metadata?.picture || "",
-    };
-  };
-
-  useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(mapUser(session?.user));
-      setIsLoading(false);
-    });
-
-    // Listen for changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(mapUser(session?.user));
-      setIsLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { signIn: convexSignIn, signOut: convexSignOut } = useAuthActions();
+  const viewer = useQuery(api["functions/users"].viewer);
+  
+  const isLoading = viewer === undefined;
+  
+  const user: User | null = viewer
+    ? {
+        id: viewer.userId,
+        userId: viewer.userId,
+        name: viewer.name || "User",
+        email: viewer.email,
+        image: viewer.image,
+      }
+    : null;
 
   const handleSignIn = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: `${window.location.origin}/`, // Redirect to home after login
-        queryParams: {
-          prompt: 'consent'
-        }
-      }
-    });
-    if (error) {
+    try {
+      // Redirect back to the exact page/route where the user clicked Connect.
+      await convexSignIn("github", { redirectTo: window.location.href });
+    } catch (error) {
       console.error("Error signing in:", error);
     }
   };
 
   const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
+    try {
+      await convexSignOut();
+    } catch (error) {
       console.error("Error signing out:", error);
     }
   };

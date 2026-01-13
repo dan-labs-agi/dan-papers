@@ -4,15 +4,15 @@ import { v } from "convex/values";
 
 export default defineSchema({
   ...authTables,
-  users: defineTable({
+  // App-specific user profile data (do NOT name this table "users" since
+  // Convex Auth's authTables already includes a "users" table).
+  profiles: defineTable({
     userId: v.string(),
     name: v.string(),
     email: v.optional(v.string()),
-    image: v.string(),
+    image: v.optional(v.string()),
     createdAt: v.number(),
-  }).index("by_userId", ["userId"])
-    .index("by_email", ["email"])
-    .index("email", ["email"]), // Added to fix "Index users.email not found" error
+  }).index("by_userId", ["userId"]),
 
   articles: defineTable({
     title: v.string(),

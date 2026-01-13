@@ -1,5 +1,6 @@
 import { query, mutation } from "../_generated/server";
 import { v } from "convex/values";
+import { auth } from "../auth";
 
 export const getAll = query({
   args: {},
@@ -43,6 +44,12 @@ export const create = mutation({
     image: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Verify user is authenticated
+    const userId = await auth.getUserId(ctx);
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+    
     const now = Date.now();
     const readTime = Math.max(1, Math.ceil(args.content.split(/\s+/).length / 200));
 

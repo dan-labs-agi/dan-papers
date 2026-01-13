@@ -14,7 +14,7 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article }) => {
         <div className="flex-1 flex flex-col gap-3">
           <div className="flex items-center gap-2 text-xs font-sans text-gray-500 dark:text-zinc-400">
             <img 
-              src={article.author === CURRENT_USER.name ? CURRENT_USER.image : `https://api.dicebear.com/7.x/initials/svg?seed=${article.author}`} 
+              src={article.authorImage || (article.author === CURRENT_USER.name ? CURRENT_USER.image : `https://api.dicebear.com/7.x/initials/svg?seed=${article.author}`)} 
               alt={article.author} 
               className="w-6 h-6 rounded-full object-cover border border-gray-100 dark:border-zinc-800"
             />
@@ -42,12 +42,13 @@ const ArticleCard: React.FC<ArticleCardProps> = ({ article }) => {
           </div>
         </div>
 
-        {article.image && (
+        {article.image && article.image.startsWith('http') && (
           <Link to={`/article/${article.id}`} className="shrink-0 ml-4">
              <img 
               src={article.image} 
               alt={article.title} 
               className="w-28 h-28 md:w-36 md:h-28 object-cover rounded-lg transition-all duration-500 border border-gray-100 dark:border-zinc-800"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
           </Link>
         )}
