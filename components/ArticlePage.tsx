@@ -170,12 +170,12 @@ const ArticlePage: React.FC = () => {
 
   // Check if it's a seed article (string ID like "genesis-of-dan-papers")
   const seedArticle = ARTICLES.find(a => a.id === id);
-  
+
   // Check if it's a Convex article (Convex document ID)
   // Only query if it looks like a Convex ID (not a slug)
   const isConvexId = id && !id.includes('-');
   const convexArticle = useQuery(
-    api["functions/articles"].getById, 
+    api["functions/articles"].getById,
     isConvexId ? { id: id as any } : "skip"
   );
 
@@ -213,8 +213,11 @@ const ArticlePage: React.FC = () => {
     content: convexArticle.content,
   } : null);
 
-  // Check if current user is the owner of this article
-  const isOwner = user && article?.authorId && user.userId === article.authorId;
+  // Check if current user is the owner of this article or an admin
+  const admins = ["somdipto", "KhalandarS"];
+  const isAdmin = user?.username && admins.includes(user.username);
+  const isOwner = (user && article?.authorId && user.userId === article.authorId);
+  const canDelete = isOwner || isAdmin;
 
   if (!article) {
     return (
@@ -308,7 +311,7 @@ const ArticlePage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-4 md:gap-8 text-gray-400">
-            {isOwner && (
+            {canDelete && (
               <button onClick={() => setShowDeleteModal(true)} title="Delete Paper" className="hover:text-red-500 transition-colors p-2">
                 <Trash2 size={22} />
               </button>

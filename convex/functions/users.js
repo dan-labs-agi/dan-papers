@@ -26,13 +26,14 @@ export const viewer = query({
 
     // Query the Convex Auth users table directly
     const authUser = await ctx.db.get(userId);
-    
+
     // Return user data from Convex Auth users table
     return {
       userId: userId,
       name: authUser?.name ?? identity.name ?? "User",
       email: authUser?.email ?? identity.email ?? undefined,
       image: authUser?.image ?? identity.pictureUrl ?? undefined,
+      username: authUser?.username,
     };
   },
 });

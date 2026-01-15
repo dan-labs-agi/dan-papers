@@ -9,6 +9,7 @@ export interface User {
   name: string;
   email?: string;
   image?: string;
+  username?: string;
 }
 
 interface AuthContextType {
@@ -31,17 +32,18 @@ export const useAuth = () => {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { signIn: convexSignIn, signOut: convexSignOut } = useAuthActions();
   const viewer = useQuery(api["functions/users"].viewer);
-  
+
   const isLoading = viewer === undefined;
-  
+
   const user: User | null = viewer
     ? {
-        id: viewer.userId,
-        userId: viewer.userId,
-        name: viewer.name || "User",
-        email: viewer.email,
-        image: viewer.image,
-      }
+      id: viewer.userId,
+      userId: viewer.userId,
+      name: viewer.name || "User",
+      email: viewer.email,
+      image: viewer.image,
+      username: viewer.username,
+    }
     : null;
 
   const handleSignIn = async () => {
