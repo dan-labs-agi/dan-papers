@@ -193,8 +193,8 @@ const WritePage: React.FC = () => {
             value={subtitle} onChange={(e) => setSubtitle(e.target.value)}
           />
           <input
-            type="text" placeholder="Cover Image URL (Optional)"
-            className="text-lg font-mono text-blue-600 dark:text-blue-400 border-none outline-none focus:ring-0 bg-transparent p-0"
+            type="url" placeholder="Cover Image URL (Optional)"
+            className="text-base font-sans text-gray-400 dark:text-zinc-500 border-none outline-none focus:ring-0 bg-transparent p-0 placeholder:text-gray-300 dark:placeholder:text-zinc-700"
             value={image} onChange={(e) => setImage(e.target.value)}
           />
           <textarea
