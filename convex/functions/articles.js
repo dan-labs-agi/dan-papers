@@ -149,7 +149,7 @@ export const remove = mutation({
 
     const user = await ctx.db.get(userId);
     // Check if user is an admin
-    const admins = ["somdipto", "KhalandarS"];
+    const admins = ["somdipto", "KhalandarS", "ANJAN672"];
     const isAdmin = admins.includes(user?.username);
 
     const article = await ctx.db.get(args.id);

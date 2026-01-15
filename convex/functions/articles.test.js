@@ -81,6 +81,24 @@ describe('Article Deletion Logic', () => {
         expect(mockDb.delete).toHaveBeenCalledWith(articleId);
     });
 
+    it('allows admin "ANJAN672" to delete any article', async () => {
+        // Setup
+        const userId = 'admin-id-3';
+        const articleId = 'article-789';
+
+        auth.getUserId.mockResolvedValue(userId);
+
+        mockDb.get.mockImplementation((id) => {
+            if (id === userId) return { username: 'ANJAN672' };
+            if (id === articleId) return { authorId: 'other-user', _id: articleId };
+            return null;
+        });
+
+        await remove.handler(mockCtx, { id: articleId });
+
+        expect(mockDb.delete).toHaveBeenCalledWith(articleId);
+    });
+
     it('prevents regular user from deleting others article', async () => {
         const userId = 'regular-id';
         const articleId = 'article-789';
