@@ -379,5 +379,8 @@ const ArticlePage: React.FC = () => {
           </div>
         </div>
       )}
+    </article>
+  );
+};
 
-      export default ArticlePage;
+export default ArticlePage;
