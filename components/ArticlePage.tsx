@@ -214,7 +214,7 @@ const ArticlePage: React.FC = () => {
   } : null);
 
   // Check if current user is the owner of this article or an admin
-  const admins = ["somdipto", "KhalandarS", "ANJAN672", "khalandar", "KHALANDAR"];
+  const admins = ["somdipto", "KhalandarS", "ANJAN672", "khalandar", "KHALANDAR", "Khalandar"];
   const isAdmin = user?.username && admins.includes(user.username);
   const isOwner = (user && article?.authorId && user.userId === article.authorId);
   const canDelete = isOwner || isAdmin;
@@ -379,8 +379,5 @@ const ArticlePage: React.FC = () => {
           </div>
         </div>
       )}
-    </article>
-  );
-};
 
-export default ArticlePage;
+      export default ArticlePage;
