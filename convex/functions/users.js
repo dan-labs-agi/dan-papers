@@ -36,7 +36,7 @@ export const viewer = query({
       name: authUser?.name ?? identity.name ?? "User",
       email: authUser?.email ?? identity.email ?? undefined,
       image: authUser?.image ?? identity.pictureUrl ?? undefined,
-      username: authUser?.username,
+      username: authUser?.username ?? (identity).username ?? (identity).nickname,
     };
   },
 });
