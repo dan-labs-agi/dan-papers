@@ -60,25 +60,78 @@ const WritePage: React.FC = () => {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjs.getDocument(arrayBuffer).promise;
         let cumulativeText = '';
+
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
-          cumulativeText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
+          const items = textContent.items as any[];
+
+          let lastY = -1;
+          let lastX = -1;
+          let pageText = '';
+
+          for (const item of items) {
+            const currentY = item.transform[5];
+            const currentX = item.transform[4];
+
+            if (lastY !== -1) {
+              const yDiff = Math.abs(currentY - lastY);
+              if (yDiff > 5) { // New line detected
+                pageText += '\n';
+              } else if (lastX !== -1 && (currentX - (lastX + (item.width || 0))) > 5) {
+                // Large horizontal gap
+                pageText += ' ';
+              }
+            }
+
+            pageText += item.str;
+            lastY = currentY;
+            lastX = currentX;
+          }
+          cumulativeText += pageText + '\n\n';
         }
-        rawText = cumulativeText;
+
+        // Post-processing: Basic Heuristics for Headers
+        rawText = cumulativeText
+          .split('\n')
+          .map(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return line;
+
+            // Detect Numbered Headers: "1. Introduction", "2. Core..."
+            if (/^\d+\.\s+[A-Z]/.test(trimmed) && trimmed.length < 100) {
+              return `## ${trimmed}`;
+            }
+            // Detect Common Section Names
+            if (/^(Abstract|Introduction|Conclusion|References|Methods|Results|Discussion|Appendices)$/i.test(trimmed)) {
+              return `## ${trimmed}`;
+            }
+            return line;
+          })
+          .join('\n');
+
       } else if (file.type.includes('word')) {
         const arrayBuffer = await file.arrayBuffer();
         const extraction = await mammoth.extractRawText({ arrayBuffer });
         rawText = extraction.value;
       } else {
-        // LaTeX, Markdown, Text
         rawText = await file.text();
       }
 
-      // Local Structuring (Basic)
       if (rawText) {
-        // Set basic metadata based on file name if title is empty
-        if (!title) setTitle(file.name.replace(/\.[^/.]+$/, ""));
+        const lines = rawText.split('\n').filter(l => l.trim().length > 0);
+
+        // Strategy: First line is often title if it's short
+        if (lines.length > 0) {
+          const firstLine = lines[0].trim();
+          if (firstLine.length > 10 && firstLine.length < 150) {
+            setTitle(firstLine.replace('## ', ''));
+            // Remove the title from content
+            rawText = rawText.replace(lines[0], '').trim();
+          } else {
+            setTitle(file.name.replace(/\.[^/.]+$/, "").replace(/_/g, ' '));
+          }
+        }
 
         setContent(rawText);
         setIsPreview(true);
