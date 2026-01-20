@@ -60,55 +60,94 @@ const WritePage: React.FC = () => {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjs.getDocument(arrayBuffer).promise;
         let cumulativeText = '';
+        let titleLines: string[] = [];
+        let maxFontSize = 0;
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
           const items = textContent.items as any[];
 
-          let lastY = -1;
-          let lastX = -1;
-          let pageText = '';
-
+          const yGroups: { [key: number]: any[] } = {};
           for (const item of items) {
-            const currentY = item.transform[5];
-            const currentX = item.transform[4];
+            const y = Math.round(item.transform[5]);
+            let foundGroup = false;
+            for (const groupY of Object.keys(yGroups).map(Number)) {
+              if (Math.abs(y - groupY) <= 3) {
+                yGroups[groupY].push(item);
+                foundGroup = true;
+                break;
+              }
+            }
+            if (!foundGroup) yGroups[y] = [item];
+          }
 
-            if (lastY !== -1) {
-              const yDiff = Math.abs(currentY - lastY);
-              if (yDiff > 5) { // New line detected
-                pageText += '\n';
-              } else if (lastX !== -1 && (currentX - (lastX + (item.width || 0))) > 5) {
-                // Large horizontal gap
-                pageText += ' ';
+          const sortedYs = Object.keys(yGroups).map(Number).sort((a, b) => b - a);
+          let lastY = -1;
+          let lastFontSize = -1;
+
+          for (const y of sortedYs) {
+            const lineItems = yGroups[y].sort((a, b) => a.transform[4] - b.transform[4]);
+            const lineText = lineItems.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
+
+            if (!lineText) continue;
+
+            const fontSize = Math.abs(lineItems[0].transform[0]);
+
+            // Title Detection (Page 1 only)
+            if (i === 1) {
+              if (fontSize > maxFontSize) {
+                maxFontSize = fontSize;
+                // If this is substantially larger, reset title
+                if (fontSize > lastFontSize * 1.5) {
+                  titleLines = [lineText];
+                } else {
+                  titleLines.push(lineText);
+                }
+              } else if (fontSize > 18 && Math.abs(fontSize - maxFontSize) < 5) {
+                // Continuation of title
+                titleLines.push(lineText);
               }
             }
 
-            pageText += item.str;
-            lastY = currentY;
-            lastX = currentX;
+            // Detect Headers
+            const isNumberedHeader = /^\d+\.\s+[A-Z]/.test(lineText);
+            const isSectionHeader = /^(Abstract|Introduction|Conclusion|References|Methods|Results|Discussion|Appendices)$/i.test(lineText);
+
+            if (lastY !== -1) {
+              const gap = lastY - y;
+              // If gap is significant or it's a header, start new paragraph
+              if (gap > fontSize * 1.8 || isNumberedHeader || isSectionHeader) {
+                cumulativeText += '\n\n';
+              } else {
+                cumulativeText += ' '; // Likely same paragraph
+              }
+            }
+
+            if ((isNumberedHeader || isSectionHeader) && lineText.length < 100) {
+              cumulativeText += `## ${lineText}`;
+            } else {
+              cumulativeText += lineText;
+            }
+
+            lastY = y;
+            lastFontSize = fontSize;
           }
-          cumulativeText += pageText + '\n\n';
+          cumulativeText += '\n\n';
         }
 
-        // Post-processing: Basic Heuristics for Headers
-        rawText = cumulativeText
-          .split('\n')
-          .map(line => {
-            const trimmed = line.trim();
-            if (!trimmed) return line;
+        const finalTitle = titleLines.join(' ');
+        rawText = cumulativeText;
 
-            // Detect Numbered Headers: "1. Introduction", "2. Core..."
-            if (/^\d+\.\s+[A-Z]/.test(trimmed) && trimmed.length < 100) {
-              return `## ${trimmed}`;
-            }
-            // Detect Common Section Names
-            if (/^(Abstract|Introduction|Conclusion|References|Methods|Results|Discussion|Appendices)$/i.test(trimmed)) {
-              return `## ${trimmed}`;
-            }
-            return line;
-          })
-          .join('\n');
+        if (finalTitle) {
+          setTitle(finalTitle);
+          // Remove finalTitle parts from beginning of rawText to avoid duplication
+          titleLines.forEach(lt => {
+            rawText = rawText.replace(lt, '').trim();
+          });
+        } else {
+          setTitle(file.name.replace(/\.[^/.]+$/, "").replace(/_/g, ' '));
+        }
 
       } else if (file.type.includes('word')) {
         const arrayBuffer = await file.arrayBuffer();
@@ -119,21 +158,7 @@ const WritePage: React.FC = () => {
       }
 
       if (rawText) {
-        const lines = rawText.split('\n').filter(l => l.trim().length > 0);
-
-        // Strategy: First line is often title if it's short
-        if (lines.length > 0) {
-          const firstLine = lines[0].trim();
-          if (firstLine.length > 10 && firstLine.length < 150) {
-            setTitle(firstLine.replace('## ', ''));
-            // Remove the title from content
-            rawText = rawText.replace(lines[0], '').trim();
-          } else {
-            setTitle(file.name.replace(/\.[^/.]+$/, "").replace(/_/g, ' '));
-          }
-        }
-
-        setContent(rawText);
+        setContent(rawText.trim());
         setIsPreview(true);
       }
     } catch (err: any) {
