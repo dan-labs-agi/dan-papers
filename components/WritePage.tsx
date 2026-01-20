@@ -84,7 +84,6 @@ const WritePage: React.FC = () => {
 
           const sortedYs = Object.keys(yGroups).map(Number).sort((a, b) => b - a);
           let lastY = -1;
-          let lastFontSize = -1;
 
           for (const y of sortedYs) {
             const lineItems = yGroups[y].sort((a, b) => a.transform[4] - b.transform[4]);
@@ -92,20 +91,15 @@ const WritePage: React.FC = () => {
 
             if (!lineText) continue;
 
-            const fontSize = Math.abs(lineItems[0].transform[0]);
+            const fontSize = Math.max(...lineItems.map(it => Math.abs(it.transform[0])));
 
             // Title Detection (Page 1 only)
             if (i === 1) {
-              if (fontSize > maxFontSize) {
+              if (fontSize > maxFontSize + 2) {
                 maxFontSize = fontSize;
-                // If this is substantially larger, reset title
-                if (fontSize > lastFontSize * 1.5) {
-                  titleLines = [lineText];
-                } else {
-                  titleLines.push(lineText);
-                }
-              } else if (fontSize > 18 && Math.abs(fontSize - maxFontSize) < 5) {
-                // Continuation of title
+                titleLines = [lineText];
+              } else if (fontSize > 18 && Math.abs(fontSize - maxFontSize) <= 3) {
+                // Continuation of title (similar size)
                 titleLines.push(lineText);
               }
             }
@@ -116,11 +110,11 @@ const WritePage: React.FC = () => {
 
             if (lastY !== -1) {
               const gap = lastY - y;
-              // If gap is significant or it's a header, start new paragraph
-              if (gap > fontSize * 1.8 || isNumberedHeader || isSectionHeader) {
+              // If gap is large OR it's a header, start new paragraph
+              if (gap > fontSize * 2.2 || isNumberedHeader || isSectionHeader) {
                 cumulativeText += '\n\n';
               } else {
-                cumulativeText += ' '; // Likely same paragraph
+                cumulativeText += ' '; // Join with space for same paragraph
               }
             }
 
@@ -131,7 +125,6 @@ const WritePage: React.FC = () => {
             }
 
             lastY = y;
-            lastFontSize = fontSize;
           }
           cumulativeText += '\n\n';
         }
@@ -141,7 +134,7 @@ const WritePage: React.FC = () => {
 
         if (finalTitle) {
           setTitle(finalTitle);
-          // Remove finalTitle parts from beginning of rawText to avoid duplication
+          // Gently remove title lines from the beginning of the text to avoid body saturation
           titleLines.forEach(lt => {
             rawText = rawText.replace(lt, '').trim();
           });
