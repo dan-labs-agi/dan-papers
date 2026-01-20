@@ -53,92 +53,34 @@ const WritePage: React.FC = () => {
     if (!file) return;
     setIsProcessingFile(true);
 
-    // Fallback extraction function
-    const extractLocalPdfText = async (file: File) => {
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjs.getDocument(arrayBuffer).promise;
-      let fullText = '';
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
-      }
-      return fullText;
-    };
-
     try {
-      let result = null;
+      let rawText = '';
 
       if (file.type === 'application/pdf') {
-        const reader = new FileReader();
-        const base64Promise = new Promise<string>((resolve, reject) => {
-          reader.onload = () => {
-            const result = reader.result as string;
-            // distinct formatting: "data:application/pdf;base64,..."
-            const base64Data = result.split(',')[1];
-            resolve(base64Data);
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-
-        const base64Data = await base64Promise;
-
-        // Create the AI Promise
-        const aiPromise = generateStructure({
-          fileData: base64Data,
-          mimeType: 'application/pdf'
-        });
-
-        // Create the Timeout Promise (10s)
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error("TIMEOUT")), 10000);
-        });
-
-        try {
-          setIsRefining(true);
-          // Race them
-          result = await Promise.race([aiPromise, timeoutPromise]);
-        } catch (error: any) {
-          if (error.message === "TIMEOUT") {
-            // Fallback!
-            console.warn("AI Timeout - Creating Fallback");
-            const rawText = await extractLocalPdfText(file);
-            // Construct a basic "result" object from raw text
-            result = {
-              title: file.name.replace('.pdf', ''),
-              subtitle: "Automatically generated draft (AI Timeout)",
-              tags: ["Draft"],
-              content: rawText
-            };
-            alert("AI Generation timed out (>10s). Switched to fast local extraction.");
-          } else {
-            throw error;
-          }
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjs.getDocument(arrayBuffer).promise;
+        let cumulativeText = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const textContent = await page.getTextContent();
+          cumulativeText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
         }
+        rawText = cumulativeText;
+      } else if (file.type.includes('word')) {
+        const arrayBuffer = await file.arrayBuffer();
+        const extraction = await mammoth.extractRawText({ arrayBuffer });
+        rawText = extraction.value;
       } else {
-        // Text-based fallback (LaTeX, MD, Docx via mammoth)
-        let rawText = '';
-        if (file.name.endsWith('.tex') || file.name.endsWith('.md')) { // Simple text files
-          rawText = await file.text();
-        } else if (file.type.includes('word')) {
-          const arrayBuffer = await file.arrayBuffer();
-          const extraction = await mammoth.extractRawText({ arrayBuffer });
-          rawText = extraction.value;
-        } else {
-          // Fallback for other text types
-          rawText = await file.text();
-        }
-
-        setIsRefining(true);
-        result = await generateStructure({ rawText });
+        // LaTeX, Markdown, Text
+        rawText = await file.text();
       }
 
-      if (result) {
-        setTitle(result.title || '');
-        setSubtitle(result.subtitle || '');
-        setTags(result.tags?.join(', ') || '');
-        setContent(result.content || '');
+      // Local Structuring (Basic)
+      if (rawText) {
+        // Set basic metadata based on file name if title is empty
+        if (!title) setTitle(file.name.replace(/\.[^/.]+$/, ""));
+
+        setContent(rawText);
         setIsPreview(true);
       }
     } catch (err: any) {
