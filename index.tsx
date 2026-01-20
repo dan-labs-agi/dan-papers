@@ -1,5 +1,6 @@
 import React from 'react';
 import './src/index.css';
+import 'katex/dist/katex.min.css';
 
 import ReactDOM from 'react-dom/client';
 import { ConvexProvider, ConvexReactClient } from "convex/react";

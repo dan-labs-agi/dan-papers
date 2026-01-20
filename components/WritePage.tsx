@@ -7,10 +7,13 @@ import { useMutation } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { useAuth } from '../src/context/AuthContext';
 import { renderArticleContent } from './ArticlePage';
+
 import * as pdfjs from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
 pdfjs.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.10.38/build/pdf.worker.mjs`;
+
+
 
 const WritePage: React.FC = () => {
   const navigate = useNavigate();
@@ -49,37 +52,98 @@ const WritePage: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
     setIsProcessingFile(true);
-    try {
-      let rawText = '';
-      if (file.type === 'application/pdf') {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjs.getDocument(arrayBuffer).promise;
-        let fullText = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
-        }
-        rawText = fullText;
-      } else if (file.type.includes('word')) {
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        rawText = result.value;
-      } else {
-        rawText = await file.text();
+
+    // Fallback extraction function
+    const extractLocalPdfText = async (file: File) => {
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjs.getDocument(arrayBuffer).promise;
+      let fullText = '';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        fullText += textContent.items.map((item: any) => item.str).join(' ') + '\n';
       }
-      setContent(rawText);
-      setIsRefining(true);
-      const structured = await generateStructure({ rawText });
-      if (structured) {
-        setTitle(structured.title || '');
-        setSubtitle(structured.subtitle || '');
-        setTags(structured.tags?.join(', ') || '');
-        setContent(structured.content || '');
+      return fullText;
+    };
+
+    try {
+      let result = null;
+
+      if (file.type === 'application/pdf') {
+        const reader = new FileReader();
+        const base64Promise = new Promise<string>((resolve, reject) => {
+          reader.onload = () => {
+            const result = reader.result as string;
+            // distinct formatting: "data:application/pdf;base64,..."
+            const base64Data = result.split(',')[1];
+            resolve(base64Data);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const base64Data = await base64Promise;
+
+        // Create the AI Promise
+        const aiPromise = generateStructure({
+          fileData: base64Data,
+          mimeType: 'application/pdf'
+        });
+
+        // Create the Timeout Promise (10s)
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("TIMEOUT")), 10000);
+        });
+
+        try {
+          setIsRefining(true);
+          // Race them
+          result = await Promise.race([aiPromise, timeoutPromise]);
+        } catch (error: any) {
+          if (error.message === "TIMEOUT") {
+            // Fallback!
+            console.warn("AI Timeout - Creating Fallback");
+            const rawText = await extractLocalPdfText(file);
+            // Construct a basic "result" object from raw text
+            result = {
+              title: file.name.replace('.pdf', ''),
+              subtitle: "Automatically generated draft (AI Timeout)",
+              tags: ["Draft"],
+              content: rawText
+            };
+            alert("AI Generation timed out (>10s). Switched to fast local extraction.");
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        // Text-based fallback (LaTeX, MD, Docx via mammoth)
+        let rawText = '';
+        if (file.name.endsWith('.tex') || file.name.endsWith('.md')) { // Simple text files
+          rawText = await file.text();
+        } else if (file.type.includes('word')) {
+          const arrayBuffer = await file.arrayBuffer();
+          const extraction = await mammoth.extractRawText({ arrayBuffer });
+          rawText = extraction.value;
+        } else {
+          // Fallback for other text types
+          rawText = await file.text();
+        }
+
+        setIsRefining(true);
+        result = await generateStructure({ rawText });
+      }
+
+      if (result) {
+        setTitle(result.title || '');
+        setSubtitle(result.subtitle || '');
+        setTags(result.tags?.join(', ') || '');
+        setContent(result.content || '');
         setIsPreview(true);
       }
     } catch (err: any) {
       alert("Extraction Error: " + err.message);
+      console.error(err);
     } finally {
       setIsProcessingFile(false);
       setIsRefining(false);

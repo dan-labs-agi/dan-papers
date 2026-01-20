@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import katex from 'katex';
 import { ARTICLES, CURRENT_USER } from '../constants';
 import { Share, MoreHorizontal, Trash2, AlertTriangle, Check, ShieldCheck, Loader2 } from 'lucide-react';
 import { useMutation, useQuery } from "convex/react";
@@ -9,58 +10,76 @@ import { useAuth } from '../src/context/AuthContext';
 
 export const parseInlineMarkdown = (text: string) => {
   if (!text) return null;
-  let processed: React.ReactNode[] = text.split(/(\*\*.*?\*\*)/g).map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="font-bold text-black dark:text-white">{part.slice(2, -2)}</strong>;
-    }
-    return part;
-  });
 
-  const italicParts: React.ReactNode[] = [];
-  processed.forEach((part) => {
-    if (typeof part === 'string') {
-      const subParts = part.split(/(\*.*?\*)/g).map((sub, j) => {
-        if (sub.startsWith('*') && sub.endsWith('*')) {
-          return <em key={j} className="italic">{sub.slice(1, -1)}</em>;
-        }
-        return sub;
-      });
-      italicParts.push(...subParts);
-    } else {
-      italicParts.push(part);
-    }
-  });
+  // First, split by inline math $...$
+  const mathParts = text.split(/(\$[^\$]+\$)/g);
 
-  const linkedParts: React.ReactNode[] = [];
-  italicParts.forEach((part) => {
-    if (typeof part === 'string') {
-      const linkRegex = /\[(.*?)\]\((.*?)\)/g;
-      const subParts: React.ReactNode[] = [];
-      let lastIndex = 0;
-      let match;
-      while ((match = linkRegex.exec(part)) !== null) {
-        subParts.push(part.substring(lastIndex, match.index));
-        subParts.push(
-          <a
-            key={match.index}
-            href={match[2]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-medium-black dark:text-white underline decoration-gray-300 dark:decoration-zinc-700 hover:decoration-black dark:hover:decoration-white transition-all"
-          >
-            {match[1]}
-          </a>
-        );
-        lastIndex = match.index + match[0].length;
+  return mathParts.map((mathPart, mIdx) => {
+    if (mathPart.startsWith('$') && mathPart.endsWith('$')) {
+      try {
+        const formula = mathPart.slice(1, -1);
+        const html = katex.renderToString(formula, { throwOnError: false, displayMode: false });
+        // Add a space heuristic if needed, or rely on css
+        return <span key={`math-${mIdx}`} dangerouslySetInnerHTML={{ __html: html }} className="inline-math px-1" />;
+      } catch {
+        return <span key={`math-${mIdx}`}>{mathPart}</span>;
       }
-      subParts.push(part.substring(lastIndex));
-      linkedParts.push(...subParts);
-    } else {
-      linkedParts.push(part);
     }
-  });
 
-  return linkedParts;
+    // Normal markdown parsing for non-math parts
+    let processed: React.ReactNode[] = mathPart.split(/(\*\*.*?\*\*)/g).map((part, i) => {
+      if (part.startsWith('**') && part.endsWith('**')) {
+        return <strong key={i} className="font-bold text-black dark:text-white">{part.slice(2, -2)}</strong>;
+      }
+      return part;
+    });
+
+    const italicParts: React.ReactNode[] = [];
+    processed.forEach((part) => {
+      if (typeof part === 'string') {
+        const subParts = part.split(/(\*.*?\*)/g).map((sub, j) => {
+          if (sub.startsWith('*') && sub.endsWith('*')) {
+            return <em key={j} className="italic">{sub.slice(1, -1)}</em>;
+          }
+          return sub;
+        });
+        italicParts.push(...subParts);
+      } else {
+        italicParts.push(part);
+      }
+    });
+
+    const linkedParts: React.ReactNode[] = [];
+    italicParts.forEach((part) => {
+      if (typeof part === 'string') {
+        const linkRegex = /\[(.*?)\]\((.*?)\)/g;
+        const subParts: React.ReactNode[] = [];
+        let lastIndex = 0;
+        let match;
+        while ((match = linkRegex.exec(part)) !== null) {
+          subParts.push(part.substring(lastIndex, match.index));
+          subParts.push(
+            <a
+              key={match.index}
+              href={match[2]}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-medium-black dark:text-white underline decoration-gray-300 dark:decoration-zinc-700 hover:decoration-black dark:hover:decoration-white transition-all"
+            >
+              {match[1]}
+            </a>
+          );
+          lastIndex = match.index + match[0].length;
+        }
+        subParts.push(part.substring(lastIndex));
+        linkedParts.push(...subParts);
+      } else {
+        linkedParts.push(part);
+      }
+    });
+
+    return <React.Fragment key={mIdx}>{linkedParts}</React.Fragment>;
+  });
 };
 
 export const renderArticleContent = (text: string) => {
@@ -123,6 +142,43 @@ export const renderArticleContent = (text: string) => {
       }
     }
 
+    // Display block math
+    if (line.trim().startsWith('$$')) {
+      const mathLines: string[] = [];
+      // Remove opening $$ if it's on the same line, or handle purely
+      // Standard markdown usually has $$ on separate lines or inline.
+      // Let's assume standard block usage:
+      // $$
+      // math
+      // $$
+      // OR $$ math $$
+
+      let currentLine = line.trim();
+      if (currentLine === '$$') {
+        i++;
+        while (i < lines.length && lines[i].trim() !== '$$') {
+          mathLines.push(lines[i]);
+          i++;
+        }
+        i++; // skip closing $$
+      } else {
+        // inline-ish block like $$ x=2 $$
+        mathLines.push(currentLine.replace(/^\$\$/, '').replace(/\$\$$/, ''));
+        i++;
+      }
+
+      const mathString = mathLines.join('\n');
+      try {
+        const html = katex.renderToString(mathString, { displayMode: true, throwOnError: false });
+        elements.push(
+          <div key={`math-${i}`} className="my-8 text-center" dangerouslySetInnerHTML={{ __html: html }} />
+        );
+      } catch (e) {
+        elements.push(<code key={`math-err-${i}`}>{mathString}</code>);
+      }
+      continue;
+    }
+
     if (line.trim().startsWith('```')) {
       const codeLines: string[] = [];
       i++;
@@ -152,6 +208,12 @@ export const renderArticleContent = (text: string) => {
     } else if (line.startsWith('> ')) {
       elements.push(<blockquote key={i} className="border-l-4 border-black dark:border-white pl-8 italic my-12 text-2xl text-gray-500 dark:text-zinc-400 font-serif leading-relaxed py-2">{parseInlineMarkdown(line.replace('> ', ''))}</blockquote>);
     } else if (line.trim().length > 0) {
+      // Check for inline math $...$ in paragraph
+      // We need a smarter way to handle mixed inline markdown and math. 
+      // For now, let's parse inline math first? 
+      // Actually parseInlineMarkdown can be updated to regex replace $...$.
+      // But preserving order is hard.
+      // Let's just render the paragraph. Ideally update `parseInlineMarkdown` too.
       elements.push(<p key={i} className="mb-6 text-xl leading-relaxed text-medium-black/90 dark:text-zinc-200 font-serif tracking-tight">{parseInlineMarkdown(line)}</p>);
     } else {
       elements.push(<div key={i} className="h-4" />);
