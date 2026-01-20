@@ -60,14 +60,15 @@ const WritePage: React.FC = () => {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjs.getDocument(arrayBuffer).promise;
         let cumulativeText = '';
-        let titleLines: string[] = [];
         let maxFontSize = 0;
+        let potentialTitle = '';
 
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const textContent = await page.getTextContent();
           const items = textContent.items as any[];
 
+          // Group items by their Y-coordinate (within a small tolerance)
           const yGroups: { [key: number]: any[] } = {};
           for (const item of items) {
             const y = Math.round(item.transform[5]);
@@ -83,61 +84,48 @@ const WritePage: React.FC = () => {
           }
 
           const sortedYs = Object.keys(yGroups).map(Number).sort((a, b) => b - a);
-          let lastY = -1;
 
           for (const y of sortedYs) {
             const lineItems = yGroups[y].sort((a, b) => a.transform[4] - b.transform[4]);
-            const lineText = lineItems.map(item => item.str).join(' ').replace(/\s+/g, ' ').trim();
 
+            let currentLineText = '';
+            for (let j = 0; j < lineItems.length; j++) {
+              currentLineText += lineItems[j].str;
+            }
+
+            const lineText = currentLineText.trim();
             if (!lineText) continue;
 
-            const fontSize = Math.max(...lineItems.map(it => Math.abs(it.transform[0])));
-
-            // Title Detection (Page 1 only)
-            if (i === 1) {
-              if (fontSize > maxFontSize + 2) {
-                maxFontSize = fontSize;
-                titleLines = [lineText];
-              } else if (fontSize > 18 && Math.abs(fontSize - maxFontSize) <= 3) {
-                // Continuation of title (similar size)
-                titleLines.push(lineText);
-              }
+            const fontSize = Math.abs(lineItems[0].transform[0]);
+            if (i === 1 && fontSize > maxFontSize && lineText.length > 5 && lineText.length < 150) {
+              maxFontSize = fontSize;
+              potentialTitle = lineText;
             }
 
-            // Detect Headers
-            const isNumberedHeader = /^\d+\.\s+[A-Z]/.test(lineText);
-            const isSectionHeader = /^(Abstract|Introduction|Conclusion|References|Methods|Results|Discussion|Appendices)$/i.test(lineText);
+            // Updated regex to catch multi-word headers and split them from body text
+            const headerRegex = /^(\d+\.\s+[A-Z][^.]{1,60}|Abstract|Introduction|Conclusion|References|Methods|Results|Discussion|Appendices)\b\s*(.*)/i;
+            const match = lineText.match(headerRegex);
 
-            if (lastY !== -1) {
-              const gap = lastY - y;
-              // If gap is large OR it's a header, start new paragraph
-              if (gap > fontSize * 2.2 || isNumberedHeader || isSectionHeader) {
-                cumulativeText += '\n\n';
-              } else {
-                cumulativeText += ' '; // Join with space for same paragraph
-              }
-            }
-
-            if ((isNumberedHeader || isSectionHeader) && lineText.length < 100) {
-              cumulativeText += `## ${lineText}`;
+            if (match && match[2].trim().length > 0) {
+              // It's a header merging into body text
+              const header = match[1].trim();
+              const body = match[2].trim();
+              cumulativeText += `## ${header}\n\n${body}\n`;
+            } else if (match) {
+              // It's just a header
+              cumulativeText += `## ${lineText}\n\n`;
             } else {
-              cumulativeText += lineText;
+              // It's normal text
+              cumulativeText += lineText + (lineText.endsWith('.') ? '\n\n' : '\n');
             }
-
-            lastY = y;
           }
-          cumulativeText += '\n\n';
+          cumulativeText += '\n';
         }
 
-        const finalTitle = titleLines.join(' ');
         rawText = cumulativeText;
-
-        if (finalTitle) {
-          setTitle(finalTitle);
-          // Gently remove title lines from the beginning of the text to avoid body saturation
-          titleLines.forEach(lt => {
-            rawText = rawText.replace(lt, '').trim();
-          });
+        if (potentialTitle) {
+          setTitle(potentialTitle);
+          rawText = rawText.replace(potentialTitle, '').trim();
         } else {
           setTitle(file.name.replace(/\.[^/.]+$/, "").replace(/_/g, ' '));
         }
@@ -151,7 +139,7 @@ const WritePage: React.FC = () => {
       }
 
       if (rawText) {
-        setContent(rawText.trim());
+        setContent(rawText);
         setIsPreview(true);
       }
     } catch (err: any) {
