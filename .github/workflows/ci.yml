@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 env:
-  # Base build environment (VITE_CONVEX_URL is loaded from .env)
+  VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
   GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
   GITHUB_CLIENT_ID: ${{ secrets.GITHUB_CLIENT_ID }}
   GITHUB_CLIENT_SECRET: ${{ secrets.GITHUB_CLIENT_SECRET }}
