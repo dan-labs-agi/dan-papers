@@ -35,6 +35,8 @@ export default defineSchema({
     tags: v.array(v.string()),
     image: v.optional(v.string()),
     content: v.string(),
+    pdfUrl: v.optional(v.string()),
+    pdfStorageId: v.optional(v.string()),
     published: v.boolean(),
     createdAt: v.number(),
     updatedAt: v.number(),

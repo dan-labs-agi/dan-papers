@@ -57,6 +57,8 @@ export const create = mutation({
     content: v.string(),
     tags: v.array(v.string()),
     image: v.optional(v.string()),
+    pdfUrl: v.optional(v.string()),
+    pdfStorageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Verify user is authenticated
@@ -71,6 +73,11 @@ export const create = mutation({
 
     const now = Date.now();
     const readTime = Math.max(1, Math.ceil(args.content.split(/\s+/).length / 200));
+
+    let pdfUrl = args.pdfUrl;
+    if (args.pdfStorageId && !pdfUrl) {
+      pdfUrl = await ctx.storage.getUrl(args.pdfStorageId);
+    }
 
     const articleId = await ctx.db.insert("articles", {
       title: args.title,
@@ -87,6 +94,8 @@ export const create = mutation({
       tags: args.tags,
       image: args.image,
       content: args.content,
+      pdfUrl: pdfUrl,
+      pdfStorageId: args.pdfStorageId,
       published: true,
       createdAt: now,
       updatedAt: now,
@@ -104,6 +113,8 @@ export const update = mutation({
     content: v.string(),
     tags: v.array(v.string()),
     image: v.optional(v.string()),
+    pdfUrl: v.optional(v.string()),
+    pdfStorageId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await auth.getUserId(ctx);

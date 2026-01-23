@@ -22,6 +22,7 @@ const WritePage: React.FC = () => {
 
   const generateStructure = useMutation(api.functions.ai.structureArticle);
   const publishArticle = useMutation(api.functions.articles.create);
+  const generateUploadUrl = useMutation(api.functions.files.generateUploadUrl);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -36,6 +37,8 @@ const WritePage: React.FC = () => {
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState('');
+  const [pdfStorageId, setPdfStorageId] = useState('');
 
   useEffect(() => {
     if (editArticle) {
@@ -44,6 +47,8 @@ const WritePage: React.FC = () => {
       setTags(editArticle.tags.join(', '));
       setContent(editArticle.content);
       setImage(editArticle.image || '');
+      setPdfUrl(editArticle.pdfUrl || '');
+      setPdfStorageId(editArticle.pdfStorageId || '');
       setIsPreview(true);
     }
   }, [editArticle]);
@@ -57,80 +62,26 @@ const WritePage: React.FC = () => {
       let rawText = '';
 
       if (file.type === 'application/pdf') {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjs.getDocument(arrayBuffer).promise;
-        let cumulativeText = '';
-        let maxFontSize = 0;
-        let potentialTitle = '';
+        // Upload to Convex storage
+        const postUrl = await generateUploadUrl();
+        const result = await fetch(postUrl, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        const { storageId } = await result.json();
+        setPdfStorageId(storageId);
 
-        for (let i = 1; i <= pdf.numPages; i++) {
-          const page = await pdf.getPage(i);
-          const textContent = await page.getTextContent();
-          const items = textContent.items as any[];
+        // Use a generic name as title if not set
+        setTitle(file.name.replace(/\.[^/.]+$/, "").replace(/_/g, ' '));
 
-          // Group items by their Y-coordinate (within a small tolerance)
-          const yGroups: { [key: number]: any[] } = {};
-          for (const item of items) {
-            const y = Math.round(item.transform[5]);
-            let foundGroup = false;
-            for (const groupY of Object.keys(yGroups).map(Number)) {
-              if (Math.abs(y - groupY) <= 3) {
-                yGroups[groupY].push(item);
-                foundGroup = true;
-                break;
-              }
-            }
-            if (!foundGroup) yGroups[y] = [item];
-          }
-
-          const sortedYs = Object.keys(yGroups).map(Number).sort((a, b) => b - a);
-
-          for (const y of sortedYs) {
-            const lineItems = yGroups[y].sort((a, b) => a.transform[4] - b.transform[4]);
-
-            let currentLineText = '';
-            for (let j = 0; j < lineItems.length; j++) {
-              currentLineText += lineItems[j].str;
-            }
-
-            const lineText = currentLineText.trim();
-            if (!lineText) continue;
-
-            const fontSize = Math.abs(lineItems[0].transform[0]);
-            if (i === 1 && fontSize > maxFontSize && lineText.length > 5 && lineText.length < 150) {
-              maxFontSize = fontSize;
-              potentialTitle = lineText;
-            }
-
-            // Updated regex to catch multi-word headers and split them from body text
-            const headerRegex = /^(\d+\.\s+[A-Z][^.]{1,60}|Abstract|Introduction|Conclusion|References|Methods|Results|Discussion|Appendices)\b\s*(.*)/i;
-            const match = lineText.match(headerRegex);
-
-            if (match && match[2].trim().length > 0) {
-              // It's a header merging into body text
-              const header = match[1].trim();
-              const body = match[2].trim();
-              cumulativeText += `## ${header}\n\n${body}\n`;
-            } else if (match) {
-              // It's just a header
-              cumulativeText += `## ${lineText}\n\n`;
-            } else {
-              // It's normal text
-              cumulativeText += lineText + (lineText.endsWith('.') ? '\n\n' : '\n');
-            }
-          }
-          cumulativeText += '\n';
-        }
-
-        rawText = cumulativeText;
-        if (potentialTitle) {
-          setTitle(potentialTitle);
-          rawText = rawText.replace(potentialTitle, '').trim();
-        } else {
-          setTitle(file.name.replace(/\.[^/.]+$/, "").replace(/_/g, ' '));
-        }
-
-      } else if (file.type.includes('word')) {
+        // We'll leave content empty or set a placeholder
+        setContent(`View the attached PDF: ${file.name}`);
+        setIsPreview(true);
+        setIsProcessingFile(false);
+        return;
+      }
+      else if (file.type.includes('word')) {
         const arrayBuffer = await file.arrayBuffer();
         const extraction = await mammoth.extractRawText({ arrayBuffer });
         rawText = extraction.value;
@@ -184,6 +135,8 @@ const WritePage: React.FC = () => {
         authorImage: user.image, // We can keep this or fetch on server, but server expects it currently based on args
         image: image || undefined,
         content,
+        pdfUrl: pdfUrl || undefined,
+        pdfStorageId: pdfStorageId || undefined,
         tags: tags.split(',').map(t => t.trim()).filter(t => t.length > 0),
       });
 

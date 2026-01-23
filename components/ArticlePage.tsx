@@ -273,6 +273,7 @@ const ArticlePage: React.FC = () => {
     tags: convexArticle.tags,
     image: convexArticle.image,
     content: convexArticle.content,
+    pdfUrl: convexArticle.pdfUrl,
   } : null);
 
   // Check if current user is the owner of this article or an admin
@@ -396,7 +397,27 @@ const ArticlePage: React.FC = () => {
         )}
 
         <div className="article-body">
-          {renderArticleContent(article.content)}
+          {article.pdfUrl ? (
+            <div className="pdf-viewer my-12 rounded-3xl overflow-hidden border border-gray-100 dark:border-zinc-800 shadow-2xl bg-gray-50 dark:bg-zinc-900 aspect-[1/1.4] w-full">
+              <iframe
+                src={`${article.pdfUrl}#toolbar=0&navpanes=0&view=FitH`}
+                className="w-full h-full border-none"
+                title="PDF Publication"
+              />
+              <div className="p-4 text-center border-t border-gray-100 dark:border-zinc-800">
+                <a
+                  href={article.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-black dark:hover:text-white transition-colors"
+                >
+                  Open Full PDF Original
+                </a>
+              </div>
+            </div>
+          ) : (
+            renderArticleContent(article.content)
+          )}
         </div>
 
         <div className="flex flex-wrap gap-3 mt-16 pt-10 border-t border-gray-100 dark:border-zinc-800">
